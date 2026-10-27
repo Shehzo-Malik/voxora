@@ -1,0 +1,7 @@
+services:
+  voxora:
+    build: .
+    container_name: voxora
+    ports:
+      - "8080:80"
+    restart: unless-stopped

@@ -1,0 +1,38 @@
+/* accounts + storage (separate data per account) */
+const K=s=>"vx:"+(user?user.uid:"guest")+":"+s;
+function load(){try{chats=JSON.parse(localStorage.getItem(K("chats"))||"[]")}catch(e){chats=[]}try{mem=JSON.parse(localStorage.getItem(K("mem"))||"[]")}catch(e){mem=[]}updMem();renderHist();newChat()}
+function save(){try{localStorage.setItem(K("chats"),JSON.stringify(chats.map(c=>({id:c.id,title:c.title,ts:c.ts,msgs:c.msgs.map(m=>({role:m.role,text:m.text,names:m.names,imgs:(m.imgs||[]).filter(i=>i.url).map(i=>({url:i.url}))}))}))))}catch(e){}}
+function saveMem(){try{localStorage.setItem(K("mem"),JSON.stringify(mem))}catch(e){}updMem()}
+function updMem(){$("mc").textContent=mem.length}
+function setUser(u){user=u;if(u)migrateGuest(u.uid);$("an").textContent=u?u.name:"Guest";$("ab").textContent=u?"Sign out":"Sign in";const p=$("pic");if(u&&u.photo){p.style.backgroundImage="url("+u.photo+")";p.textContent=""}else{p.style.backgroundImage="";p.textContent=(u?u.name:"G").charAt(0).toUpperCase()}load()}
+function ld(s){return new Promise((r,j)=>{const e=document.createElement("script");e.src=s;e.onload=r;e.onerror=j;document.head.appendChild(e)})}
+function getSession(){try{const s=JSON.parse(localStorage.getItem("vx:session")||"null");return s&&s.uid?s:null}catch(e){return null}}
+let gsiP=null;
+function loadGsi(){if(!CONFIG.GOOGLE_CLIENT_ID)return Promise.reject(new Error("no client id"));return gsiP||(gsiP=ld("https://accounts.google.com/gsi/client").then(()=>{google.accounts.id.initialize({client_id:CONFIG.GOOGLE_CLIENT_ID,callback:onGoogleCred})}).catch(e=>{gsiP=null;throw e}))}
+function onGoogleCred(r){try{const p=JSON.parse(decodeURIComponent(escape(atob(r.credential.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")))));const s={uid:"g:"+p.sub,name:p.name||p.email||"User",email:p.email||"",photo:p.picture||"",provider:"google"};localStorage.setItem("vx:session",JSON.stringify(s));localStorage.removeItem("vx:guest");setUser(s);closeModal();toast("Signed in as "+s.name)}catch(e){toast("Google sign-in failed. Please try again.")}}
+function migrateGuest(uid){["chats","mem"].forEach(k=>{const a="vx:"+uid+":"+k,g="vx:guest:"+k;try{if(!localStorage.getItem(a)&&localStorage.getItem(g))localStorage.setItem(a,localStorage.getItem(g))}catch(e){}})}
+async function initAuth(){const F=CONFIG.FIREBASE;
+if(F&&F.apiKey){try{await ld("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js");await ld("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js");firebase.initializeApp(F);auth=firebase.auth();
+auth.onAuthStateChanged(u=>{if(u){setUser({uid:u.uid,name:u.displayName||u.email||"User",photo:u.photoURL,provider:"firebase"});closeModal()}else{const s=getSession();if(s)setUser(s);else if(localStorage.getItem("vx:guest")){setUser(null)}else{setUser(null);showLogin()}}});return}catch(e){toast("Sign-in service could not load.")}}
+const s=getSession();if(s){setUser(s);return}
+setUser(null);if(!localStorage.getItem("vx:guest"))showLogin()}
+function showLogin(){let h='<h3>Welcome to Voxora</h3><p>Sign in to keep your chats and memory saved to your account.</p>';
+if(auth)h+='<button class="chip" onclick="signIn(\'google\')"><i class="fa-brands fa-google"></i> Continue with Google</button><button class="chip" onclick="signIn(\'apple\')"><i class="fa-brands fa-apple"></i> Continue with Apple</button>';
+else if(CONFIG.GOOGLE_CLIENT_ID)h+='<div id="gbtn" style="display:flex;justify-content:center;min-height:44px;margin-bottom:10px"></div>';
+h+='<button class="chip" onclick="showProfile()"><i class="fa-regular fa-user"></i> Continue with name &amp; email</button><button class="chip" onclick="guest()">Continue as guest</button>';
+$("mdb").innerHTML=h;$("ov").classList.add("open");
+if(!auth&&CONFIG.GOOGLE_CLIENT_ID)loadGsi().then(()=>google.accounts.id.renderButton($("gbtn"),{theme:"filled_blue",size:"large",shape:"pill",text:"continue_with",width:280})).catch(()=>{const g=$("gbtn");if(g)g.innerHTML='<p style="font-size:12px">Google sign-in could not load. Use name &amp; email instead.</p>'})}
+function showProfile(){$("mdb").innerHTML='<h3>Your profile</h3><p>Enter your name and email. Your chats and memory are saved under this profile on this device.</p><input class="inp" id="pn" placeholder="Your name" autocomplete="name"><input class="inp" id="pe" type="email" placeholder="Email (e.g. name@gmail.com)" autocomplete="email" onkeydown="if(event.key===\'Enter\')profileLogin()"><button class="chip" onclick="profileLogin()">Continue</button><button class="chip" onclick="showLogin()">Back</button>';$("ov").classList.add("open");setTimeout(()=>{const n=$("pn");if(n)n.focus()},60)}
+function profileLogin(){const n=$("pn").value.trim(),e=$("pe").value.trim().toLowerCase();if(!n){toast("Please enter your name.");return}if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)){toast("Please enter a valid email.");return}const s={uid:"l:"+e,name:n.slice(0,40),email:e,photo:"",provider:"local"};localStorage.setItem("vx:session",JSON.stringify(s));localStorage.removeItem("vx:guest");setUser(s);closeModal()}
+function closeModal(){$("ov").classList.remove("open")}
+$("ov").addEventListener("click",e=>{if(e.target.id==="ov"&&(user||localStorage.getItem("vx:guest")))closeModal()});
+function guest(){localStorage.setItem("vx:guest","1");closeModal();if(user)setUser(null)}
+function signIn(k){if(!auth){toast("Sign-in is not set up yet.");return}const p=k==="google"?new firebase.auth.GoogleAuthProvider():new firebase.auth.OAuthProvider("apple.com");auth.signInWithPopup(p).catch(e=>{const c=e.code||"";if(/popup-blocked|operation-not-supported|web-storage-unsupported/.test(c))return auth.signInWithRedirect(p);if(c==="auth/unauthorized-domain")toast("This website's domain is not authorized in Firebase (Authentication > Settings > Authorized domains).");else if(c!=="auth/popup-closed-by-user"&&c!=="auth/cancelled-popup-request")toast(e.message)})}
+function acctBtn(){if(!user){showLogin();return}const fb=user.provider==="firebase";if(fb&&auth)auth.signOut();localStorage.removeItem("vx:session");localStorage.removeItem("vx:guest");try{google.accounts.id.disableAutoSelect()}catch(e){}if(!fb){setUser(null);showLogin()}}
+function showMem(){$("mdb").innerHTML='<h3>Memory</h3><p>Things Voxora remembers about you. Say "remember that..." (or "yaad rakho...") in chat, or add one below.</p><input class="inp" id="memin" maxlength="300" placeholder="e.g. My name is Ali, I live in Lahore" onkeydown="if(event.key===\'Enter\')addMem()"><button class="chip" onclick="addMem()"><i class="fa-solid fa-plus"></i> Save to memory</button>'+(mem.length?mem.map((m,i)=>'<div class="mi"><span>'+esc(m)+'</span><button class="lk" onclick="delMem('+i+')">Delete</button></div>').join("")+'<button class="chip" style="margin-top:14px" onclick="mem=[];saveMem();showMem()">Clear all</button>':'<p>Nothing saved yet.</p>')+'<button class="chip" style="margin-top:10px" onclick="closeModal()">Close</button>';$("ov").classList.add("open")}
+function addMem(){const i=$("memin"),v=i?i.value.trim():"";if(!v){toast("Type something to remember.");return}addMemory(v);showMem()}
+function addMemory(f){f=f.trim().slice(0,300);if(f.length<2||mem.some(x=>x.toLowerCase()===f.toLowerCase()))return false;mem.push(f);if(mem.length>50)mem.shift();saveMem();return true}
+function delMem(i){mem.splice(i,1);saveMem();showMem()}
+function remember(t){let f=t.trim().replace(/^(please|plz)\s+/i,"").replace(/^(remember|memori[sz]e)(\s+that)?\b[\s:,-]*/i,"").replace(/^yaa?d\s*rakh\w*(\s+(ke|ki|k|ye|yeh))?\b[\s:,-]*/i,"").replace(/[\s,]*\b(yaa?d\s*rakh\w*|(in\s+)?(my\s+)?memory\s*(mein|me|main|mn)?\s*(save|add)\s*(kar\w*|it|this)?)\s*[.!]*$/i,"").trim();if(!f)f=t.trim();if(addMemory(f))toast("Saved to memory ✓")}
+
+
