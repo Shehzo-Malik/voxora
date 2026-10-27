@@ -1,7 +1,7 @@
 /* ============ OWNER CONFIG (edit only this block) ============ */
 const CONFIG={
   API_KEY:"",          // DO NOT put your real key here on a public GitHub repo. Use PROXY_URL (see worker/worker.js) instead.
-  PROXY_URL:"",        // Your Cloudflare Worker URL, e.g. PROXY_URL:"https://voxora-api.shehzalmalik9.workers.dev"
+  PROXY_URL:"https://voxora-api.shehzalmalik9.workers.dev",        // Your Cloudflare Worker URL, e.g. "https://voxora-api.yourname.workers.dev" (no slash at the end). Then API_KEY is not needed.
   API_KEYS:[],         // Optional: extra Gemini keys. When one hits its free limit, the next one is used automatically.
   GOOGLE_CLIENT_ID:"", // Optional: enables "Continue with Google" (Gmail) - easiest setup, no Firebase needed.
   FREE_CHAT:true,      // true = when the Gemini limit is reached (or there is no key) chat continues through a free service
