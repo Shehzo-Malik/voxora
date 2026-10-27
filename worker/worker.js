@@ -1,12 +1,12 @@
 // Cloudflare Worker: keeps your Gemini API key(s) SECRET and rotates them on rate limits.
 // Settings > Variables and secrets:
 //   GEMINI_KEYS     (Secret)  one key, or several separated by commas
-//   ALLOWED_ORIGINS (Text)    e.g. https://yourname.github.io   (comma separated, or * for any)
+//   ALLOWED_ORIGINS (Text, OPTIONAL) default is already https://shehzo-malik.github.io and http://localhost:8080
 export default {
   async fetch(req, env) {
     const origin = req.headers.get("Origin") || "";
-    const allowed = (env.ALLOWED_ORIGINS || "*").split(",").map(s => s.trim()).filter(Boolean);
-    const ok = allowed.includes("*") || allowed.includes(origin);
+    const allowed = (env.ALLOWED_ORIGINS || "https://shehzo-malik.github.io,http://localhost:8080").split(",").map(s => s.trim()).filter(Boolean);
+    const ok = !origin || allowed.includes("*") || allowed.includes(origin); // empty origin = you opening the link directly in the browser to test
     const cors = {
       "Access-Control-Allow-Origin": allowed.includes("*") ? "*" : (ok ? origin : allowed[0]),
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
